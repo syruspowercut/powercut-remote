@@ -65,9 +65,33 @@ async function waitAck(id) {                       // the Mac confirms each item
   }
   return null;
 }
+
+// ---------- Show tab: DJ on screen, dot colour, DJ name hue ----------
+const DOTC = { white: "#ece6ff", blue: "#4664ff", red: "#ff283c", pink: "#ff46be", green: "#3cff78", cyan: "#32e6ff" };
+let showState = null, hueDial = null, showLockUntil = 0;
+function drawShow(sh) {
+  if (!sh) return; showState = sh;
+  if (Date.now() < showLockUntil) return;                          // keep the optimistic choice for a moment after a tap
+  const box = $("scenesBox");
+  if (box.childElementCount !== (sh.scenes || []).length) { box.innerHTML = ""; (sh.scenes || []).forEach(sc => { const b = document.createElement("button"); b.className = "scn"; b.dataset.id = sc.id; b.textContent = sc.label.replace(" (rendering)", ""); b.onclick = () => pickScene(sc.id, b); box.appendChild(b); }); }
+  box.querySelectorAll(".scn").forEach(b => b.classList.toggle("on", b.dataset.id === sh.scene));
+  const db = $("dotBox");
+  if (!db.childElementCount) Object.entries(DOTC).forEach(([id, col]) => { const b = document.createElement("button"); b.className = "dotb"; b.dataset.dot = id; b.setAttribute("aria-label", "Dots " + id); b.style.background = `radial-gradient(circle at 40% 35%, #fff 0 8%, ${col} 30%, ${col}88 70%)`; b.style.boxShadow = `0 0 12px ${col}66`; b.onclick = () => pickDot(id); db.appendChild(b); });
+  db.querySelectorAll(".dotb").forEach(b => { b.style.outline = b.dataset.dot === sh.dotColor ? "3px solid #fff" : "none"; b.style.outlineOffset = "3px"; });
+  if (hueDial) hueDial.set(sh.nameHue || 0);
+}
+function lockShow() { showLockUntil = Date.now() + 4000; }
+
+async function control(action, value, label) {
+  if (!key) return;
+  try { const id = await publish({ type: 'control', action, value }); const a = await waitAck(id); toast(a ? (a.ok ? label + ' ✓' : (a.error || 'The Mac could not do that')) : 'Sent, but the Mac did not confirm', a && a.ok ? 1800 : 4000); }
+  catch (e) { toast(e.message, 4000); showLockUntil = 0; }
+}
+function pickScene(id, btn) { lockShow(); $('scenesBox').querySelectorAll('.scn').forEach(b => b.classList.toggle('on', b === btn)); toast('Switching to ' + btn.textContent + '...'); control('scene', id, btn.textContent + ' on screen'); if (navigator.vibrate) navigator.vibrate(20); }
+function pickDot(id) { lockShow(); $('dotBox').querySelectorAll('.dotb').forEach(b => { b.style.outline = b.dataset.dot === id ? '3px solid #fff' : 'none'; }); control('dotcolor', id, 'Dots ' + id); }
 function applyStatus(m) {
   macStatus = m; macStatus._seen = (m._t || Date.now() / 1000) * 1000;
-  drawStatus(); drawAgain(m.history || []);
+  drawStatus(); drawAgain(m.history || []); if (m.show) drawShow(m.show);
 }
 function drawStatus() {
   const c = $('conn');
@@ -89,8 +113,8 @@ async function poll() {
 }
 
 // ---------- UI (same as the local remote) ----------
-function setTab(t) { tab = t; $('tText').classList.toggle('on', t === 'text'); $('tPhoto').classList.toggle('on', t === 'photo'); $('pText').classList.toggle('hidden', t !== 'text'); $('pPhoto').classList.toggle('hidden', t !== 'photo'); updateSend(); }
-$('tText').onclick = () => setTab('text'); $('tPhoto').onclick = () => setTab('photo');
+function setTab(t) { tab = t; for (const [b, p] of [['tText', 'pText'], ['tPhoto', 'pPhoto'], ['tShow', 'pShow']]) { $(b).classList.toggle('on', $(b).id === 't' + t[0].toUpperCase() + t.slice(1)); $(p).classList.toggle('hidden', p !== 'p' + t[0].toUpperCase() + t.slice(1)); } $('sendPanel').classList.toggle('hidden', t === 'show'); updateSend(); }
+$('tText').onclick = () => setTab('text'); $('tPhoto').onclick = () => setTab('photo'); $('tShow').onclick = () => setTab('show');
 document.querySelectorAll('#styles .chip').forEach(b => b.onclick = () => { style = b.dataset.style; document.querySelectorAll('#styles .chip').forEach(x => x.classList.toggle('on', x === b)); renderPrev(); });
 document.querySelectorAll('#durs .chip').forEach(b => b.onclick = () => { secs = +b.dataset.s; document.querySelectorAll('#durs .chip').forEach(x => x.classList.toggle('on', x === b)); });
 function renderPrev() {
@@ -161,5 +185,5 @@ function drawAgain(h) {
     box.appendChild(b);
   });
 }
-(async () => { renderPrev(); drawRecent(); if (await setup()) { updateSend(); poll(); setInterval(poll, 20000); setInterval(drawStatus, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); }); } })();
+(async () => { renderPrev(); drawRecent(); if (await setup()) { updateSend(); if (window.makeHueDial) hueDial = window.makeHueDial($('hueBox'), { size: 220, onChange: v => { lockShow(); control('hue', Math.round(v), 'Name colour'); } }); poll(); setInterval(poll, 20000); setInterval(drawStatus, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); }); } })();
 })();

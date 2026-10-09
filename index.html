@@ -55,13 +55,16 @@
   .clearbar { position:fixed; left:0; right:0; bottom:0; padding:12px 16px calc(env(safe-area-inset-bottom) + 12px); background:linear-gradient(180deg,rgba(11,11,14,0),#0b0b0e 35%); }
   .clearbar button { max-width:528px; margin:0 auto; display:block; background:#2a0d12; border-color:#7a1d2a; color:#ffb3bc; }
   .hidden { display:none; }
+  .scn { font:inherit; font-weight:800; letter-spacing:.04em; color:var(--fg); background:#1d1d24; border:1px solid #33333e; border-radius:12px; padding:16px 8px; }
+  .scn.on { border-color:var(--acc); background:rgba(255,42,60,.18); }
+  .dotb { width:48px; height:48px; border-radius:50%; border:0; padding:0; }
   .recent .chip { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body>
 <header><b>POWERCUT REMOTE · ANYWHERE</b><span class="pill" id="conn">connecting</span></header>
 <div class="panel live" id="live">On screen now: <b>nothing</b></div>
-<div class="tabs"><button id="tText" class="on">Text</button><button id="tPhoto">Photo</button></div>
+<div class="tabs" style="grid-template-columns:1fr 1fr 1fr"><button id="tText" class="on">Text</button><button id="tPhoto">Photo</button><button id="tShow">Show</button></div>
 
 <section id="pText">
   <div class="panel">
@@ -87,7 +90,12 @@
   </div>
 </section>
 
-<div class="panel">
+<section id="pShow" class="hidden">
+  <div class="panel"><label>DJ on screen</label><div id="scenesBox" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div></div>
+  <div class="panel"><label>Dot colour</label><div id="dotBox" style="display:flex;gap:12px;flex-wrap:wrap"></div></div>
+  <div class="panel" style="text-align:center"><label style="text-align:left">DJ name colour (drag the wheel, tap the centre for red)</label><div id="hueBox" style="display:inline-block;margin-top:6px"></div></div>
+</section>
+<div class="panel" id="sendPanel">
   <label>How long</label>
   <div class="chips" id="durs"><button class="chip" data-s="5">5 s</button><button class="chip on" data-s="8">8 s</button><button class="chip" data-s="20">20 s ⚠︎</button><button class="chip" data-s="60">1 min ⚠︎</button><button class="chip" data-s="0">Until cleared ⚠︎</button></div>
   <div class="count" style="text-align:left;margin-top:8px">Short is best. Longer stays ask you to confirm because they cover the DJ name.</div>
@@ -96,6 +104,7 @@
 <div class="panel hidden" id="againBox"><label>Show again</label><div class="chips" id="again"></div></div>
 <div class="clearbar"><button class="big" id="clear">Clear screen</button></div>
 <div id="toast"></div>
+<script src="hue-dial.js"></script>
 <script src="relay.js"></script>
 </body>
 </html>
