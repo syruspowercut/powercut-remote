@@ -7,9 +7,13 @@ const $ = id => document.getElementById(id);
 const b64u = { enc: b => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
   dec: s => { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; const r = atob(s); const u = new Uint8Array(r.length); for (let i = 0; i < r.length; i++) u[i] = r.charCodeAt(i); return u; } };
 const hex = b => [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
-let K = (new URLSearchParams(location.hash.slice(1))).get('k') || '';
+const HP = new URLSearchParams(location.hash.slice(1));
+let K = HP.get('k') || '', PD = HP.get('p') || '', PQ = HP.get('q') || '';
 try { if (K) localStorage.setItem('pc-relay-key', K); else K = localStorage.getItem('pc-relay-key') || ''; } catch (e) {}
+try { if (PD && PQ) localStorage.setItem('pc-paid-key', JSON.stringify({ d: PD, pub: PQ })); else ({ d: PD, pub: PQ } = JSON.parse(localStorage.getItem('pc-paid-key') || '{}')); } catch (e) {}
 let key = null, topic = '', stopic = '', tab = 'text', style = 'headline', secs = 8, photoBlob = null, busy = false, LONG = 10, macStatus = null;
+document.querySelectorAll('#sizes .chip').forEach(b => b.onclick = () => document.querySelectorAll('#sizes .chip').forEach(x => x.classList.toggle('on', x === b)));
+const photoSize = () => (document.querySelector('#sizes .chip.on') || {}).dataset?.size || 'normal';
 const toast = (m, ms = 2400) => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove('show'), ms); };
 
 async function setup() {
@@ -70,7 +74,7 @@ async function waitAck(id) {                       // the Mac confirms each item
 const DOTC = { white: "#ece6ff", blue: "#4664ff", red: "#ff283c", pink: "#ff46be", green: "#3cff78", cyan: "#32e6ff" };
 let showState = null, hueDial = null, showLockUntil = 0;
 function drawShow(sh) {
-  if (!sh) return; showState = sh;
+  if (!sh) return; showState = sh; if (window.PC_EXTRAS_STATE) window.PC_EXTRAS_STATE(sh);
   if (Date.now() < showLockUntil) return;                          // keep the optimistic choice for a moment after a tap
   const box = $("scenesBox");
   if (box.childElementCount !== (sh.scenes || []).length) { box.innerHTML = ""; (sh.scenes || []).forEach(sc => { const b = document.createElement("button"); b.className = "scn"; b.dataset.id = sc.id; b.textContent = sc.label.replace(" (rendering)", ""); b.onclick = () => pickScene(sc.id, b); box.appendChild(b); }); }
@@ -167,7 +171,7 @@ $('send').onclick = async () => {
   try {
     let id;
     if (tab === 'text') { const t = $('msg').value.trim(); id = await publish({ type: 'text', text: t, style, seconds: secs, confirmed }); pushRecent(t.toUpperCase()); }
-    else { const buf = await photoBlob.arrayBuffer(); id = await publish({ type: 'image', seconds: secs, confirmed, caption: $('cap').value.trim() }, buf, p => { $('send').textContent = 'Uploading ' + Math.round(p * 100) + '%'; }); }
+    else { const buf = await photoBlob.arrayBuffer(); id = await publish({ type: 'image', seconds: secs, confirmed, caption: $('cap').value.trim(), size: photoSize() }, buf, p => { $('send').textContent = 'Uploading ' + Math.round(p * 100) + '%'; }); }
     $('send').textContent = 'Waiting for the screen...';
     await afterSend(id);
   } catch (e) { toast(e.message, 4500); }
@@ -186,4 +190,10 @@ function drawAgain(h) {
   });
 }
 (async () => { renderPrev(); drawRecent(); if (await setup()) { updateSend(); if (window.makeHueDial) hueDial = window.makeHueDial($('hueBox'), { size: 220, onChange: v => { lockShow(); control('hue', Math.round(v), 'Name colour'); } }); poll(); setInterval(poll, 20000); setInterval(drawStatus, 5000); document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); }); } })();
+window.PC_EXTRAS = {
+  toast, control: (a, v, label) => control(a, v, label),
+  paidKey: async () => (PD && PQ ? { d: PD, pub: PQ } : null),
+  sendText: async (text, seconds) => { if (!key) throw new Error('No key'); toast('Sending...'); const id = await publish({ type: 'text', text, style: 'headline', seconds, confirmed: true }); await afterSend(id); return true; },
+  sendImage: async (blob, seconds, caption, size) => { if (!key) throw new Error('No key'); toast('Uploading...'); const id = await publish({ type: 'image', seconds, confirmed: true, caption: caption || '', size: size || 'normal' }, await blob.arrayBuffer()); await afterSend(id); return true; }
+};
 })();
